@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.schemas.common import OptimizationMode
 
@@ -10,6 +10,12 @@ class ComposeRouteRequest(BaseModel):
     to_location_id: int = Field(gt=0)
     optimization: OptimizationMode = OptimizationMode.FASTEST
     allowed_transport_type_ids: list[int] | None = None
+
+    @model_validator(mode="after")
+    def validate_locations_not_equal(self) -> "ComposeRouteRequest":
+        if self.from_location_id == self.to_location_id:
+            raise ValueError("from_location_id must not be equal to to_location_id")
+        return self
 
 
 class RouteSegment(BaseModel):

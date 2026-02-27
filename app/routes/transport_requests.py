@@ -1,6 +1,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.transport_quote_crud import TransportQuoteCrud
@@ -22,7 +23,16 @@ provider_client = ScheduleProviderClient()
 logger = logging.getLogger("app.transport_requests")
 
 
+def _validate_locations_not_equal(from_location_id: int, to_location_id: int) -> None:
+    if from_location_id == to_location_id:
+        raise HTTPException(
+            status_code=422,
+            detail="departure_location_id must not be equal to arrival_location_id",
+        )
+
+
 async def _validate_locations(from_location_id: int, to_location_id: int) -> None:
+    _validate_locations_not_equal(from_location_id, to_location_id)
     try:
         from_exists = await location_client.ensure_location_exists(from_location_id)
         to_exists = await location_client.ensure_location_exists(to_location_id)
@@ -56,7 +66,12 @@ async def create_request(
     await _validate_locations(
         payload.departure_location_id, payload.arrival_location_id
     )
-    item = await TransportRequestCrud.create(session, payload)
+    try:
+        item = await TransportRequestCrud.create(session, payload)
+    except IntegrityError as exc:
+        await session.rollback()
+        logger.warning("Transport request integrity error on create", extra={"error": str(exc)})
+        raise HTTPException(status_code=422, detail="Transport request violates constraints") from exc
     logger.info(
         "Transport request created",
         extra={"request_id": item.id, "user_id": item.user_id},
@@ -108,7 +123,12 @@ async def update_request(
     to_location_id = payload.arrival_location_id or item.arrival_location_id
     await _validate_locations(from_location_id, to_location_id)
 
-    updated = await TransportRequestCrud.update(session, item, payload)
+    try:
+        updated = await TransportRequestCrud.update(session, item, payload)
+    except IntegrityError as exc:
+        await session.rollback()
+        logger.warning("Transport request integrity error on update", extra={"error": str(exc)})
+        raise HTTPException(status_code=422, detail="Transport request violates constraints") from exc
     logger.info("Transport request updated", extra={"request_id": item_id})
     return TransportRequestRead.model_validate(updated)
 
@@ -133,17 +153,32 @@ async def quote_request(
         total_duration_minutes=total_duration,
         base_currency=currency,
     )
-    saved = await TransportQuoteCrud.create(
-        session,
-        transport_request_id=request_item.id,
-        provider_name=quote.provider_name,
-        external_quote_id=quote.external_quote_id,
-        price_amount=quote.price_amount,
-        currency=quote.currency,
-        payment_url=quote.payment_url,
-        expires_at=quote.expires_at,
-        payload=quote.payload,
-    )
+    try:
+        saved = await TransportQuoteCrud.create(
+            session,
+            transport_request_id=request_item.id,
+            provider_name=quote.provider_name,
+            external_quote_id=quote.external_quote_id,
+            price_amount=quote.price_amount,
+            currency=quote.currency,
+            payment_url=quote.payment_url,
+            expires_at=quote.expires_at,
+            payload=quote.payload,
+            commit=False,
+        )
+
+        await TransportRequestCrud.update(
+            session,
+            request_item,
+            TransportRequestUpdate(status=RequestStatus.QUOTED),
+            commit=False,
+        )
+        await session.commit()
+    except IntegrityError as exc:
+        await session.rollback()
+        logger.warning("Transport quote integrity error", extra={"error": str(exc), "request_id": item_id})
+        raise HTTPException(status_code=422, detail="Transport quote violates constraints") from exc
+
     logger.info(
         "Quote saved",
         extra={
@@ -151,12 +186,6 @@ async def quote_request(
             "quote_id": saved.id,
             "currency": saved.currency,
         },
-    )
-
-    await TransportRequestCrud.update(
-        session,
-        request_item,
-        TransportRequestUpdate(status=RequestStatus.QUOTED),
     )
 
     return TransportQuoteRead.model_validate(saved)

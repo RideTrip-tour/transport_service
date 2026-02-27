@@ -1,6 +1,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.transport_catalog_crud import TransportCatalogCrud
@@ -17,7 +18,16 @@ location_client = LocationClient()
 logger = logging.getLogger("app.transport_catalog")
 
 
+def _validate_locations_not_equal(from_location_id: int, to_location_id: int) -> None:
+    if from_location_id == to_location_id:
+        raise HTTPException(
+            status_code=422,
+            detail="from_location_id must not be equal to to_location_id",
+        )
+
+
 async def _validate_locations(from_location_id: int, to_location_id: int) -> None:
+    _validate_locations_not_equal(from_location_id, to_location_id)
     try:
         from_exists = await location_client.ensure_location_exists(from_location_id)
         to_exists = await location_client.ensure_location_exists(to_location_id)
@@ -49,7 +59,12 @@ async def create_catalog_route(
         },
     )
     await _validate_locations(payload.from_location_id, payload.to_location_id)
-    item = await TransportCatalogCrud.create(session, payload)
+    try:
+        item = await TransportCatalogCrud.create(session, payload)
+    except IntegrityError as exc:
+        await session.rollback()
+        logger.warning("Catalog route integrity error on create", extra={"error": str(exc)})
+        raise HTTPException(status_code=422, detail="Catalog route violates constraints") from exc
     logger.info("Catalog route created", extra={"route_id": item.id})
     return TransportCatalogRouteRead.model_validate(item)
 
@@ -105,7 +120,12 @@ async def update_catalog_route(
     to_location_id = payload.to_location_id or item.to_location_id
     await _validate_locations(from_location_id, to_location_id)
 
-    updated = await TransportCatalogCrud.update(session, item, payload)
+    try:
+        updated = await TransportCatalogCrud.update(session, item, payload)
+    except IntegrityError as exc:
+        await session.rollback()
+        logger.warning("Catalog route integrity error on update", extra={"error": str(exc)})
+        raise HTTPException(status_code=422, detail="Catalog route violates constraints") from exc
     logger.info("Catalog route updated", extra={"route_id": item_id})
     return TransportCatalogRouteRead.model_validate(updated)
 

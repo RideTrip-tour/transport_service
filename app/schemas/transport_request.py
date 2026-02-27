@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
 from app.schemas.common import RequestStatus, RequestType
 
@@ -16,6 +16,14 @@ class TransportRequestCreate(BaseModel):
     passenger_count: int = Field(gt=0)
     comment: str | None = Field(default=None, max_length=512)
 
+    @model_validator(mode="after")
+    def validate_locations_not_equal(self) -> "TransportRequestCreate":
+        if self.departure_location_id == self.arrival_location_id:
+            raise ValueError(
+                "departure_location_id must not be equal to arrival_location_id"
+            )
+        return self
+
 
 class TransportRequestUpdate(BaseModel):
     type: RequestType | None = None
@@ -27,6 +35,18 @@ class TransportRequestUpdate(BaseModel):
     arrival_location_id: int | None = Field(default=None, gt=0)
     passenger_count: int | None = Field(default=None, gt=0)
     comment: str | None = Field(default=None, max_length=512)
+
+    @model_validator(mode="after")
+    def validate_locations_not_equal(self) -> "TransportRequestUpdate":
+        if (
+            self.departure_location_id is not None
+            and self.arrival_location_id is not None
+            and self.departure_location_id == self.arrival_location_id
+        ):
+            raise ValueError(
+                "departure_location_id must not be equal to arrival_location_id"
+            )
+        return self
 
 
 class TransportRequestRead(BaseModel):

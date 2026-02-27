@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class TransportCatalogRouteCreate(BaseModel):
@@ -13,6 +13,12 @@ class TransportCatalogRouteCreate(BaseModel):
     base_currency: str | None = Field(default=None, min_length=3, max_length=3)
     provider: str | None = Field(default=None, max_length=128)
 
+    @model_validator(mode="after")
+    def validate_locations_not_equal(self) -> "TransportCatalogRouteCreate":
+        if self.from_location_id == self.to_location_id:
+            raise ValueError("from_location_id must not be equal to to_location_id")
+        return self
+
 
 class TransportCatalogRouteUpdate(BaseModel):
     transport_type_id: int | None = Field(default=None, gt=0)
@@ -23,6 +29,16 @@ class TransportCatalogRouteUpdate(BaseModel):
     base_currency: str | None = Field(default=None, min_length=3, max_length=3)
     provider: str | None = Field(default=None, max_length=128)
     is_active: bool | None = None
+
+    @model_validator(mode="after")
+    def validate_locations_not_equal(self) -> "TransportCatalogRouteUpdate":
+        if (
+            self.from_location_id is not None
+            and self.to_location_id is not None
+            and self.from_location_id == self.to_location_id
+        ):
+            raise ValueError("from_location_id must not be equal to to_location_id")
+        return self
 
 
 class TransportCatalogRouteRead(BaseModel):

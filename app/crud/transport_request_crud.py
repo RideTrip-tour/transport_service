@@ -10,13 +10,16 @@ class TransportRequestCrud:
     async def create(
         session: AsyncSession,
         data: TransportRequestCreate,
+        commit: bool = True,
     ) -> TransportRequest:
         item = TransportRequest(
             **data.model_dump(),
             type=data.type.value,
         )
         session.add(item)
-        await session.commit()
+        await session.flush()
+        if commit:
+            await session.commit()
         await session.refresh(item)
         return item
 
@@ -41,6 +44,7 @@ class TransportRequestCrud:
         session: AsyncSession,
         item: TransportRequest,
         data: TransportRequestUpdate,
+        commit: bool = True,
     ) -> TransportRequest:
         payload = data.model_dump(exclude_unset=True)
         if "type" in payload and payload["type"] is not None:
@@ -51,6 +55,8 @@ class TransportRequestCrud:
         for field, value in payload.items():
             setattr(item, field, value)
 
-        await session.commit()
+        await session.flush()
+        if commit:
+            await session.commit()
         await session.refresh(item)
         return item
