@@ -15,7 +15,16 @@ LOGGING_CONFIG = {
             "formatter": "default",
         },
     },
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
+    },
     "loggers": {
+        "app": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
         "users": {  # твой логгер
             "handlers": ["console"],
             "level": "INFO",

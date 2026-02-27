@@ -1,39 +1,99 @@
-# FastAPI Microservice Template 🚀
+# Transport Service
 
-Базовый шаблон для создания микросервисов в экосистеме RideTrip.
-Включает в себя настроенный Docker, асинхронную работу с БД (SQLAlchemy + AsyncPG), миграции (Alembic) и структурированное логирование (Structlog).
+Микросервис транспорта в архитектуре gateway.
 
-## 📋 Чек-лист при создании нового сервиса
+Базовый API-префикс сервиса: `/api/transport`
 
-Как только вы создали репозиторий из этого шаблона, выполните следующие шаги:
+Swagger:
+- `/api/transport/docs`
+- `/api/transport/redoc`
+- `/api/transport/openapi.json`
 
-1.  **Переименование:**
-    * В `app/core/config.py` измените `APP_NAME` на имя вашего сервиса.
-    * В `pyproject.toml` (или `requirements.txt`) обновите название проекта.
-2.  **Очистка:**
-    * Удалите папку `.git` и инициализируйте новую (если не использовали кнопку "Use this template").
-3.  **Зависимости:**
-    * Добавьте специфичные для сервиса библиотеки (например, `fastapi-users` для Auth или `stripe` для платежей).
+Подробное описание сервиса:
+- [docs/transport-service-design.md](/home/viktor/PycharmProjects/transport-service/docs/transport-service-design.md)
 
----
+## Что реализовано
 
-## 🏗 Структура проекта (Куда писать код?)
+- хранение видов транспорта;
+- хранение маршрутов каталога между локациями;
+- хранение пользовательских транспортных запросов;
+- построение составного маршрута (`planner/compose`);
+- получение quote через stub-провайдер с `payment_url`;
+- проверка доступности сервиса (`health/live`, `health/ready`).
 
-Мы используем слоистую архитектуру. Код разносится по папкам в зависимости от ответственности:
+Все идентификаторы (`id`, `user_id`, `location_id`) используются в формате `int`.
 
-| Папка | Зачем нужна? | Пример |
-| :--- | :--- | :--- |
-| **`app/routes`** | **Точки входа (API).** Только обработка HTTP, валидация входных данных и вызов сервисов. Минимум логики. | `POST /users`, `GET /tours/{id}` |
-| **`app/schemas`** | **Pydantic модели.** Валидация данных "на вход" и "на выход". | `UserCreate`, `TourResponse` |
-| **`app/services`** | **Бизнес-логика.** Основной "мозг" сервиса. Здесь принимаются решения, происходят вычисления. | `calculate_price()`, `register_user()` |
-| **`app/crud`** | **Работа с БД.** Только прямые запросы к базе (Create, Read, Update, Delete). Никакой бизнес-логики. | `get_user_by_email()`, `create_order()` |
-| **`app/db`** | **Модели данных.** SQLAlchemy модели (таблицы БД). | `class User(Base): ...` |
-| **`app/middleware`** | **Middleware.** Перехват запросов (логирование, заголовки, CORS). | `ProcessTimeMiddleware` |
-| **`app/utils`** | **Утилиты.** Вспомогательные функции. | Логгер, форматтеры дат и т.д. |
+## Локальный запуск
 
----
+### 1. Подготовка окружения
 
-## 🚀 Как запустить
+```bash
+make venv
+```
 
-### Через Docker (Рекомендуется)
-Сервис полностью готов к запуску в контейнере. Переменные окружения должны передаваться извне (docker-compose или k8s).
+или вручную:
+
+```bash
+python3 -m venv venv
+./venv/bin/pip install -r requirements.txt
+```
+
+### 2. Настройка переменных окружения
+
+Можно создать `.env` в корне проекта, например:
+
+```env
+APP_NAME=transport-service
+DEBUG=true
+
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=mydb
+DB_USER=user
+DB_PASS=password123
+
+location_service_base_url=http://localhost:8010
+location_service_timeout_ms=1000
+location_service_retries=2
+
+schedule_provider_base_url=http://localhost:8020
+schedule_provider_timeout_ms=1500
+schedule_provider_retries=2
+
+default_currency=USD
+```
+
+### 3. Применение миграций
+
+```bash
+alembic upgrade head
+```
+
+или:
+
+```bash
+make migrate
+```
+
+### 4. Запуск сервиса
+
+```bash
+make run-dev
+```
+
+или:
+
+```bash
+./venv/bin/uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### 5. Проверка
+
+- health: `GET http://localhost:8000/api/transport/health/live`
+- swagger: `http://localhost:8000/api/transport/docs`
+
+## Тесты
+
+```bash
+python3 -m pytest -q
+```

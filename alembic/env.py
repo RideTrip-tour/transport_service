@@ -10,6 +10,7 @@ from alembic import context
 
 from config import settings
 from app.db.base import Base  
+import app.db.models  # noqa: F401
 
 
 config = context.config
