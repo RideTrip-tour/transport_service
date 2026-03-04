@@ -11,14 +11,23 @@ Swagger:
 
 Подробное описание сервиса:
 - [docs/transport-service-design.md](/home/viktor/PycharmProjects/transport-service/docs/transport-service-design.md)
+- [docs/transport-service-requirements.md](/home/viktor/PycharmProjects/transport-service/docs/transport-service-requirements.md)
+- [docs/transport-service-task-plan.md](/home/viktor/PycharmProjects/transport-service/docs/transport-service-task-plan.md)
 
 ## Что реализовано
 
-- хранение видов транспорта;
-- хранение маршрутов каталога между локациями;
-- хранение пользовательских транспортных запросов;
-- построение составного маршрута (`planner/compose`);
-- получение quote через stub-провайдер с `payment_url`;
+- Epic 01: архитектурный каркас и API-контракты для `routes`;
+- Epic 02: персистентность маршрутов в PostgreSQL (`segments`, `routes`, `search_history`);
+- Epic 03: adapter layer провайдеров (`ProviderAdapter`, `FlightProviderAdapter`, registry);
+- Epic 04: routing engine (граф, ограничения, ранжирование, `top-N`);
+- Epic 05: API `/routes/*` (location validation, idempotency, batch chunking);
+- Epic 06: Redis cache-aside для сегментов (`segment:{origin}:{dest}:{date}`, TTL 3600);
+- Epic 07: batch orchestration (grouping, bounded concurrency, audit, trigger endpoint);
+- Epic 08: observability/reliability (correlation-id, metrics, readiness checks, guardrails);
+- `POST /api/transport/routes/search`;
+- `POST /api/transport/routes/{route_id}/recalculate`;
+- `POST /api/transport/routes/batch-recalculate`;
+- единая модель ошибок (`code`, `message`, `details`, `trace_id`);
 - проверка доступности сервиса (`health/live`, `health/ready`).
 
 Все идентификаторы (`id`, `user_id`, `location_id`) используются в формате `int`.

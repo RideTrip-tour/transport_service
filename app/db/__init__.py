@@ -1,13 +1,8 @@
-from app.db.models import (
-    TransportCatalogRoute,
-    TransportQuote,
-    TransportRequest,
-    TransportType,
-)
+from app.db.models import BatchRecalculationAudit, Route, SearchHistory, Segment
 
 __all__ = [
-    "TransportType",
-    "TransportCatalogRoute",
-    "TransportRequest",
-    "TransportQuote",
+    "BatchRecalculationAudit",
+    "Segment",
+    "Route",
+    "SearchHistory",
 ]
